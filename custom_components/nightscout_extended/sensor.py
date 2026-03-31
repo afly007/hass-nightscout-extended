@@ -37,9 +37,12 @@ class NightscoutSensorEntityDescription(SensorEntityDescription):
     """Extend the base description with coordinator data keys."""
 
     data_key: str = ""
-    # When set, the coordinator stores a boolean at this key indicating whether
-    # the value is stale (no record found within the lookback window).
+    # When set, the coordinator stores a boolean at this key that indicates
+    # whether a record was found within the lookback window.
     stale_key: str | None = None
+    # When set, the coordinator stores a datetime at this key that is exposed
+    # as a ``last_reported`` attribute on the sensor.
+    timestamp_key: str | None = None
 
 
 SENSOR_DESCRIPTIONS: tuple[NightscoutSensorEntityDescription, ...] = (
@@ -47,6 +50,7 @@ SENSOR_DESCRIPTIONS: tuple[NightscoutSensorEntityDescription, ...] = (
         key=KEY_CAGE,
         data_key=KEY_CAGE,
         stale_key=KEY_CAGE_STALE,
+        timestamp_key=KEY_CAGE_TIMESTAMP,
         name="Cannula Age",
         icon="mdi:needle",
         native_unit_of_measurement=UnitOfTime.HOURS,
@@ -58,19 +62,13 @@ SENSOR_DESCRIPTIONS: tuple[NightscoutSensorEntityDescription, ...] = (
         key=KEY_SAGE,
         data_key=KEY_SAGE,
         stale_key=KEY_SAGE_STALE,
+        timestamp_key=KEY_SAGE_TIMESTAMP,
         name="Sensor Age",
         icon="mdi:diabetes",
         native_unit_of_measurement=UnitOfTime.HOURS,
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
-    ),
-    NightscoutSensorEntityDescription(
-        key=KEY_CAGE_TIMESTAMP,
-        data_key=KEY_CAGE_TIMESTAMP,
-        name="Cannula Last Changed",
-        icon="mdi:needle",
-        device_class=SensorDeviceClass.TIMESTAMP,
     ),
     NightscoutSensorEntityDescription(
         key=KEY_LAST_READING,
@@ -82,6 +80,7 @@ SENSOR_DESCRIPTIONS: tuple[NightscoutSensorEntityDescription, ...] = (
     NightscoutSensorEntityDescription(
         key=KEY_PUMP_BATTERY,
         data_key=KEY_PUMP_BATTERY,
+        timestamp_key=KEY_PUMP_TIMESTAMP,
         name="Pump Battery",
         icon="mdi:battery",
         native_unit_of_measurement=PERCENTAGE,
@@ -91,25 +90,12 @@ SENSOR_DESCRIPTIONS: tuple[NightscoutSensorEntityDescription, ...] = (
     NightscoutSensorEntityDescription(
         key=KEY_PUMP_RESERVOIR,
         data_key=KEY_PUMP_RESERVOIR,
+        timestamp_key=KEY_PUMP_TIMESTAMP,
         name="Pump Reservoir",
         icon="mdi:water",
         native_unit_of_measurement="U",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
-    ),
-    NightscoutSensorEntityDescription(
-        key=KEY_PUMP_TIMESTAMP,
-        data_key=KEY_PUMP_TIMESTAMP,
-        name="Pump Last Reported",
-        icon="mdi:clock-outline",
-        device_class=SensorDeviceClass.TIMESTAMP,
-    ),
-    NightscoutSensorEntityDescription(
-        key=KEY_SAGE_TIMESTAMP,
-        data_key=KEY_SAGE_TIMESTAMP,
-        name="Sensor Last Started",
-        icon="mdi:diabetes",
-        device_class=SensorDeviceClass.TIMESTAMP,
     ),
 )
 
@@ -159,19 +145,26 @@ class NightscoutExtendedSensor(
         return self.coordinator.data.get(self.entity_description.data_key)
 
     @property
-    def extra_state_attributes(self) -> dict[str, bool] | None:
-        """Expose a ``data_available`` attribute for CAGE and SAGE sensors.
+    def extra_state_attributes(self) -> dict | None:
+        """Return additional attributes for this sensor.
 
-        Returns ``None`` for sensors that have no staleness concept (battery,
-        reservoir). For CAGE and SAGE, ``data_available: false`` means no
-        treatment record was found within the lookback window — either the entry
-        is missing from Nightscout or the consumable is genuinely overdue.
+        ``data_available`` (CAGE and SAGE only) — False when no treatment record
+        was found within the lookback window, meaning the data is missing or the
+        consumable is overdue.
 
-        Useful in automations::
+        ``last_reported`` — the datetime when this value was last recorded in
+        Nightscout. Useful for detecting connectivity or uploader issues:
 
-            state_attr('sensor.cannula_age', 'data_available') == false
+            state_attr('sensor.cannula_age', 'last_reported')
         """
+        attrs: dict = {}
+
         stale_key = self.entity_description.stale_key
-        if stale_key is None:
-            return None
-        return {"data_available": not self.coordinator.data.get(stale_key, True)}
+        if stale_key is not None:
+            attrs["data_available"] = not self.coordinator.data.get(stale_key, True)
+
+        timestamp_key = self.entity_description.timestamp_key
+        if timestamp_key is not None:
+            attrs["last_reported"] = self.coordinator.data.get(timestamp_key)
+
+        return attrs if attrs else None

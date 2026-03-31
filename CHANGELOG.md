@@ -5,15 +5,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.4.0] - 2026-03-31
 
-### Added
-- **Cannula Last Changed** — timestamp of the last `Site Change` treatment
-- **Sensor Last Started** — timestamp of the last `Sensor Start` treatment
-- **Pump Last Reported** — timestamp of the last devicestatus entry from the pump
-- Renamed "Last Reading" to **CGM Last Reading** for clarity
-
 ### Changed
-- All four timestamp sensors use `SensorDeviceClass.TIMESTAMP` so HA displays
-  them in local time and they can be used directly in automation triggers
+- Replaced separate timestamp entities with a `last_reported` attribute on each
+  existing sensor — follows HA best practice of using attributes for metadata
+  rather than creating additional entities
+- Cannula Age, Sensor Age, Pump Battery, and Pump Reservoir each now expose
+  a `last_reported` attribute showing when that value was last recorded in Nightscout
+- Cannula Age and Sensor Age retain their `data_available` attribute alongside
+  the new `last_reported`
+
+### Added
+- **CGM Last Reading** — dedicated timestamp sensor for the most recent blood
+  glucose entry (kept as a standalone entity since there is no existing
+  measurement sensor to attach it to)
 
 ## [1.3.0] - 2026-03-31
 
