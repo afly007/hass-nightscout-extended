@@ -1,12 +1,12 @@
 {
   "domain": "nightscout_extended",
   "name": "Nightscout Extended",
-  "version": "1.1.0",
-  "documentation": "https://github.com/afly007/hass-nightscout-extended",
-  "issue_tracker": "https://github.com/afly007/hass-nightscout-extended/issues",
-  "dependencies": [],
   "codeowners": ["@afly007"],
-  "requirements": [],
   "config_flow": true,
-  "iot_class": "cloud_polling"
+  "dependencies": [],
+  "documentation": "https://github.com/afly007/hass-nightscout-extended",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/afly007/hass-nightscout-extended/issues",
+  "requirements": [],
+  "version": "1.1.2"
 }
