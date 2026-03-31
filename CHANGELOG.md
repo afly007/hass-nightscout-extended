@@ -3,6 +3,13 @@
 All notable changes to this project will be documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.2.0] - 2026-03-31
+
+### Added
+- CAGE and SAGE sensors now use `device_class: duration`, enabling native unit
+  conversion in Home Assistant. Change the display unit between hours and days
+  directly from the entity settings UI — no extra sensors or configuration needed.
+
 ## [1.1.3] - 2026-03-31
 
 ### Fixed
