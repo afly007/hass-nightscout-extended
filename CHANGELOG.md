@@ -3,6 +3,13 @@
 All notable changes to this project will be documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.0] - 2026-03-31
+
+### Added
+- **Last Reading** sensor — reports the timestamp of the most recent CGM value
+  as a `datetime`. Use this to detect stale data when the CGM stops reporting.
+  Example automation trigger: `now() - states('sensor.last_reading') > 00:15:00`
+
 ## [1.2.0] - 2026-03-31
 
 ### Added

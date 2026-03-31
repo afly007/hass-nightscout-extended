@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -19,6 +20,7 @@ from .const import (
     DOMAIN,
     KEY_CAGE,
     KEY_CAGE_STALE,
+    KEY_LAST_READING,
     KEY_PUMP_BATTERY,
     KEY_PUMP_RESERVOIR,
     KEY_SAGE,
@@ -59,6 +61,13 @@ SENSOR_DESCRIPTIONS: tuple[NightscoutSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=1,
+    ),
+    NightscoutSensorEntityDescription(
+        key=KEY_LAST_READING,
+        data_key=KEY_LAST_READING,
+        name="Last Reading",
+        icon="mdi:clock-outline",
+        device_class=SensorDeviceClass.TIMESTAMP,
     ),
     NightscoutSensorEntityDescription(
         key=KEY_PUMP_BATTERY,
@@ -121,7 +130,7 @@ class NightscoutExtendedSensor(
         }
 
     @property
-    def native_value(self) -> float | None:
+    def native_value(self) -> float | datetime | None:
         """Return the sensor value from coordinator data."""
         return self.coordinator.data.get(self.entity_description.data_key)
 

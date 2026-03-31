@@ -8,6 +8,7 @@ DEFAULT_SCAN_INTERVAL = 300  # seconds (5 minutes)
 
 # Nightscout API paths
 API_DEVICESTATUS = "/api/v1/devicestatus.json"
+API_ENTRIES = "/api/v1/entries.json"
 API_TREATMENTS = "/api/v1/treatments.json"
 
 # Treatment event types used to calculate cannula and sensor age.
@@ -24,9 +25,10 @@ CAGE_LOOKBACK_DAYS = 7
 SAGE_LOOKBACK_DAYS = 15
 
 # Coordinator data keys
-KEY_PUMP_BATTERY = "pump_battery"
-KEY_PUMP_RESERVOIR = "pump_reservoir"
 KEY_CAGE = "cage"
 KEY_CAGE_STALE = "cage_stale"
+KEY_LAST_READING = "last_reading"
+KEY_PUMP_BATTERY = "pump_battery"
+KEY_PUMP_RESERVOIR = "pump_reservoir"
 KEY_SAGE = "sage"
 KEY_SAGE_STALE = "sage_stale"

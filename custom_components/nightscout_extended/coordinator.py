@@ -12,12 +12,14 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import (
     API_DEVICESTATUS,
+    API_ENTRIES,
     API_TREATMENTS,
     CAGE_LOOKBACK_DAYS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     KEY_CAGE,
     KEY_CAGE_STALE,
+    KEY_LAST_READING,
     KEY_PUMP_BATTERY,
     KEY_PUMP_RESERVOIR,
     KEY_SAGE,
@@ -83,6 +85,17 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator[dict]):
             return data
 
     @staticmethod
+    def _parse_timestamp(timestamp_str: str | None) -> datetime | None:
+        """Parse an ISO-8601 timestamp string into a timezone-aware datetime."""
+        if not timestamp_str:
+            return None
+        try:
+            return datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+        except (ValueError, TypeError):
+            _LOGGER.warning("Could not parse Nightscout timestamp: %s", timestamp_str)
+            return None
+
+    @staticmethod
     def _hours_since(timestamp_str: str | None) -> float | None:
         """Return decimal hours elapsed since an ISO-8601 timestamp string."""
         if not timestamp_str:
@@ -112,6 +125,11 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator[dict]):
                 session, API_DEVICESTATUS, {"count": 1}
             )
 
+            # Latest CGM entry — used to detect stale readings
+            entries = await self._fetch_json(
+                session, API_ENTRIES, {"count": 1}
+            )
+
             # Cannula age — infusion sets are typically replaced every 1–4 days
             cage_results = await self._fetch_json(
                 session,
@@ -133,6 +151,20 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator[dict]):
                     "count": 1,
                 },
             )
+
+        # --- Last CGM reading timestamp ---
+        last_reading: datetime | None = None
+        if entries and isinstance(entries, list):
+            entry = entries[0]
+            # Prefer the ISO string; fall back to the Unix ms timestamp
+            last_reading = self._parse_timestamp(entry.get("dateString"))
+            if last_reading is None and entry.get("date"):
+                try:
+                    last_reading = datetime.fromtimestamp(
+                        entry["date"] / 1000, tz=timezone.utc
+                    )
+                except (ValueError, TypeError, OSError):
+                    _LOGGER.warning("Could not parse entry date field: %s", entry.get("date"))
 
         # --- Pump data (battery + reservoir) ---
         pump_battery: float | None = None
@@ -162,10 +194,11 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator[dict]):
             sage_stale = sage_hours is None
 
         return {
-            KEY_PUMP_BATTERY: pump_battery,
-            KEY_PUMP_RESERVOIR: pump_reservoir,
             KEY_CAGE: cage_hours,
             KEY_CAGE_STALE: cage_stale,
+            KEY_LAST_READING: last_reading,
+            KEY_PUMP_BATTERY: pump_battery,
+            KEY_PUMP_RESERVOIR: pump_reservoir,
             KEY_SAGE: sage_hours,
             KEY_SAGE_STALE: sage_stale,
         }
