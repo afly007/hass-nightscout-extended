@@ -3,12 +3,23 @@
 All notable changes to this project will be documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.4.0] - 2026-03-31
+
+### Added
+- **Cannula Last Changed** — timestamp of the last `Site Change` treatment
+- **Sensor Last Started** — timestamp of the last `Sensor Start` treatment
+- **Pump Last Reported** — timestamp of the last devicestatus entry from the pump
+- Renamed "Last Reading" to **CGM Last Reading** for clarity
+
+### Changed
+- All four timestamp sensors use `SensorDeviceClass.TIMESTAMP` so HA displays
+  them in local time and they can be used directly in automation triggers
+
 ## [1.3.0] - 2026-03-31
 
 ### Added
-- **Last Reading** sensor — reports the timestamp of the most recent CGM value
-  as a `datetime`. Use this to detect stale data when the CGM stops reporting.
-  Example automation trigger: `now() - states('sensor.last_reading') > 00:15:00`
+- **CGM Last Reading** sensor — timestamp of the most recent blood glucose entry,
+  useful for detecting when the CGM has stopped reporting
 
 ## [1.2.0] - 2026-03-31
 

@@ -20,11 +20,14 @@ from .const import (
     DOMAIN,
     KEY_CAGE,
     KEY_CAGE_STALE,
+    KEY_CAGE_TIMESTAMP,
     KEY_LAST_READING,
     KEY_PUMP_BATTERY,
     KEY_PUMP_RESERVOIR,
+    KEY_PUMP_TIMESTAMP,
     KEY_SAGE,
     KEY_SAGE_STALE,
+    KEY_SAGE_TIMESTAMP,
 )
 from .coordinator import NightscoutExtendedCoordinator
 
@@ -63,9 +66,16 @@ SENSOR_DESCRIPTIONS: tuple[NightscoutSensorEntityDescription, ...] = (
         suggested_display_precision=1,
     ),
     NightscoutSensorEntityDescription(
+        key=KEY_CAGE_TIMESTAMP,
+        data_key=KEY_CAGE_TIMESTAMP,
+        name="Cannula Last Changed",
+        icon="mdi:needle",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    NightscoutSensorEntityDescription(
         key=KEY_LAST_READING,
         data_key=KEY_LAST_READING,
-        name="Last Reading",
+        name="CGM Last Reading",
         icon="mdi:clock-outline",
         device_class=SensorDeviceClass.TIMESTAMP,
     ),
@@ -86,6 +96,20 @@ SENSOR_DESCRIPTIONS: tuple[NightscoutSensorEntityDescription, ...] = (
         native_unit_of_measurement="U",
         state_class=SensorStateClass.MEASUREMENT,
         suggested_display_precision=0,
+    ),
+    NightscoutSensorEntityDescription(
+        key=KEY_PUMP_TIMESTAMP,
+        data_key=KEY_PUMP_TIMESTAMP,
+        name="Pump Last Reported",
+        icon="mdi:clock-outline",
+        device_class=SensorDeviceClass.TIMESTAMP,
+    ),
+    NightscoutSensorEntityDescription(
+        key=KEY_SAGE_TIMESTAMP,
+        data_key=KEY_SAGE_TIMESTAMP,
+        name="Sensor Last Started",
+        icon="mdi:diabetes",
+        device_class=SensorDeviceClass.TIMESTAMP,
     ),
 )
 

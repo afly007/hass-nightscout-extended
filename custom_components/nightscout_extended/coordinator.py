@@ -19,11 +19,14 @@ from .const import (
     DOMAIN,
     KEY_CAGE,
     KEY_CAGE_STALE,
+    KEY_CAGE_TIMESTAMP,
     KEY_LAST_READING,
     KEY_PUMP_BATTERY,
     KEY_PUMP_RESERVOIR,
+    KEY_PUMP_TIMESTAMP,
     KEY_SAGE,
     KEY_SAGE_STALE,
+    KEY_SAGE_TIMESTAMP,
     SAGE_LOOKBACK_DAYS,
     TREATMENT_CAGE_CHANGE,
     TREATMENT_SAGE_CHANGE,
@@ -169,36 +172,46 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator[dict]):
         # --- Pump data (battery + reservoir) ---
         pump_battery: float | None = None
         pump_reservoir: float | None = None
+        pump_timestamp: datetime | None = None
         if devicestatus and isinstance(devicestatus, list):
-            pump = devicestatus[0].get("pump", {})
+            status = devicestatus[0]
+            pump = status.get("pump", {})
             battery = pump.get("battery", {})
             pump_battery = battery.get("percent") or battery.get("voltage")
             pump_reservoir = pump.get("reservoir")
+            pump_timestamp = self._parse_timestamp(status.get("created_at"))
 
         # --- Cannula age ---
         # ``cage_stale`` is True when no record was found in the lookback window,
         # indicating that the data is missing or overdue in Nightscout.
         cage_hours: float | None = None
         cage_stale = True
+        cage_timestamp: datetime | None = None
         if cage_results and isinstance(cage_results, list):
             ts = cage_results[0].get("created_at") or cage_results[0].get("timestamp")
+            cage_timestamp = self._parse_timestamp(ts)
             cage_hours = self._hours_since(ts)
             cage_stale = cage_hours is None
 
         # --- Sensor age ---
         sage_hours: float | None = None
         sage_stale = True
+        sage_timestamp: datetime | None = None
         if sage_results and isinstance(sage_results, list):
             ts = sage_results[0].get("created_at") or sage_results[0].get("timestamp")
+            sage_timestamp = self._parse_timestamp(ts)
             sage_hours = self._hours_since(ts)
             sage_stale = sage_hours is None
 
         return {
             KEY_CAGE: cage_hours,
             KEY_CAGE_STALE: cage_stale,
+            KEY_CAGE_TIMESTAMP: cage_timestamp,
             KEY_LAST_READING: last_reading,
             KEY_PUMP_BATTERY: pump_battery,
             KEY_PUMP_RESERVOIR: pump_reservoir,
+            KEY_PUMP_TIMESTAMP: pump_timestamp,
             KEY_SAGE: sage_hours,
             KEY_SAGE_STALE: sage_stale,
+            KEY_SAGE_TIMESTAMP: sage_timestamp,
         }

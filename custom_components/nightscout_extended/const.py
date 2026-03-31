@@ -27,8 +27,11 @@ SAGE_LOOKBACK_DAYS = 15
 # Coordinator data keys
 KEY_CAGE = "cage"
 KEY_CAGE_STALE = "cage_stale"
+KEY_CAGE_TIMESTAMP = "cage_timestamp"
 KEY_LAST_READING = "last_reading"
 KEY_PUMP_BATTERY = "pump_battery"
 KEY_PUMP_RESERVOIR = "pump_reservoir"
+KEY_PUMP_TIMESTAMP = "pump_timestamp"
 KEY_SAGE = "sage"
 KEY_SAGE_STALE = "sage_stale"
+KEY_SAGE_TIMESTAMP = "sage_timestamp"
