@@ -1,3 +1,4 @@
+"""Constants for the Nightscout Extended integration."""
 DOMAIN = "nightscout_extended"
 
 CONF_URL = "url"
@@ -9,19 +10,23 @@ DEFAULT_SCAN_INTERVAL = 300  # seconds (5 minutes)
 API_DEVICESTATUS = "/api/v1/devicestatus.json"
 API_TREATMENTS = "/api/v1/treatments.json"
 
-# Treatment event types — confirmed for this setup.
-TREATMENT_CAGE_CHANGE = "Site Change"    # infusion set / cannula change
-TREATMENT_SAGE_CHANGE = "Sensor Start"   # CGM sensor insertion
+# Treatment event types used to calculate cannula and sensor age.
+# These are confirmed for Loop/Trio uploaders. Other uploaders may differ —
+# see the README compatibility table.
+TREATMENT_CAGE_CHANGE = "Site Change"   # infusion set / cannula change
+TREATMENT_SAGE_CHANGE = "Sensor Start"  # CGM sensor insertion
 
-# How far back to search for each treatment type (days).
-# If no record is found within this window the sensor is flagged as stale.
+# How far back to search for each treatment type.
+# If no matching record is found within the window the sensor is flagged stale.
 # CAGE: cannula is typically replaced every 1–4 days; 7-day window gives buffer.
-# SAGE: Dexcom sensor lasts up to 15 days; search the full max lifespan.
+# SAGE: Dexcom G6/G7 sensors last up to 10/15 days; search the full max lifespan.
 CAGE_LOOKBACK_DAYS = 7
 SAGE_LOOKBACK_DAYS = 15
 
-# Sensor keys used internally
-SENSOR_CAGE = "cage"
-SENSOR_SAGE = "sage"
-SENSOR_PUMP_BATTERY = "pump_battery"
-SENSOR_PUMP_RESERVOIR = "pump_reservoir"
+# Coordinator data keys
+KEY_PUMP_BATTERY = "pump_battery"
+KEY_PUMP_RESERVOIR = "pump_reservoir"
+KEY_CAGE = "cage"
+KEY_CAGE_STALE = "cage_stale"
+KEY_SAGE = "sage"
+KEY_SAGE_STALE = "sage_stale"

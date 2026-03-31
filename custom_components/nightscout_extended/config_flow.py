@@ -8,6 +8,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import CONF_TOKEN, CONF_URL, DOMAIN
 
@@ -21,56 +22,58 @@ STEP_USER_DATA_SCHEMA = vol.Schema(
 )
 
 
-async def _validate_input(hass: HomeAssistant, data: dict) -> None:
-    """Try a real API call to verify the URL and token are valid.
+async def _validate_connection(hass: HomeAssistant, data: dict) -> None:
+    """Attempt a real API call to verify the URL and token are valid.
 
-    Raises aiohttp.ClientError or ValueError on failure.
+    Raises:
+        ValueError: with a translation key describing the error.
+        aiohttp.ClientError: on network / connection failures.
     """
-    url = data[CONF_URL].rstrip("/") + "/api/v1/devicestatus.json"
-    params = {}
+    base_url = data[CONF_URL].rstrip("/")
+    url = f"{base_url}/api/v1/devicestatus.json"
+    params: dict = {"count": 1}
     if data.get(CONF_TOKEN):
         params["token"] = data[CONF_TOKEN]
-    params["count"] = 1
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(
-            url, params=params, timeout=aiohttp.ClientTimeout(total=10)
-        ) as resp:
-            if resp.status == 401:
-                raise ValueError("invalid_token")
-            if resp.status != 200:
-                raise ValueError("cannot_connect")
-            result = await resp.json()
-            if not isinstance(result, list):
-                raise ValueError("cannot_connect")
+    session = async_get_clientsession(hass)
+    async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=10)) as resp:
+        if resp.status == 401:
+            raise ValueError("invalid_token")
+        if resp.status != 200:
+            raise ValueError("cannot_connect")
+        result = await resp.json()
+        if not isinstance(result, list):
+            raise ValueError("cannot_connect")
 
 
 class NightscoutExtendedConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle the user-facing setup dialog."""
+    """Handle the UI setup dialog for Nightscout Extended."""
 
     VERSION = 1
 
-    async def async_step_user(self, user_input=None):
-        errors = {}
+    async def async_step_user(
+        self, user_input: dict | None = None
+    ) -> config_entries.FlowResult:
+        """Handle the initial setup step."""
+        errors: dict[str, str] = {}
 
         if user_input is not None:
-            # Normalise URL — strip trailing slash
             user_input[CONF_URL] = user_input[CONF_URL].rstrip("/")
 
             try:
-                await _validate_input(self.hass, user_input)
+                await _validate_connection(self.hass, user_input)
             except ValueError as exc:
                 errors["base"] = str(exc)
+            except aiohttp.ClientConnectionError:
+                errors["base"] = "cannot_connect"
             except aiohttp.ClientError:
                 errors["base"] = "cannot_connect"
             except Exception:
-                _LOGGER.exception("Unexpected error during Nightscout validation")
+                _LOGGER.exception("Unexpected error validating Nightscout connection")
                 errors["base"] = "unknown"
             else:
-                # Prevent duplicate entries for the same Nightscout URL
                 await self.async_set_unique_id(user_input[CONF_URL])
                 self._abort_if_unique_id_configured()
-
                 return self.async_create_entry(
                     title=user_input[CONF_URL],
                     data=user_input,

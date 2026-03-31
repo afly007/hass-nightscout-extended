@@ -1,5 +1,18 @@
+# Editor & OS
 .DS_Store
+*.swp
+*.swo
+
+# Python
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
 .env
+
+# Claude Code
+.claude/
+
+# IDE
+.vscode/
+.idea/

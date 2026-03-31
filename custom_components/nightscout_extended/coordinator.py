@@ -16,6 +16,12 @@ from .const import (
     CAGE_LOOKBACK_DAYS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    KEY_CAGE,
+    KEY_CAGE_STALE,
+    KEY_PUMP_BATTERY,
+    KEY_PUMP_RESERVOIR,
+    KEY_SAGE,
+    KEY_SAGE_STALE,
     SAGE_LOOKBACK_DAYS,
     TREATMENT_CAGE_CHANGE,
     TREATMENT_SAGE_CHANGE,
@@ -24,10 +30,11 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-class NightscoutExtendedCoordinator(DataUpdateCoordinator):
+class NightscoutExtendedCoordinator(DataUpdateCoordinator[dict]):
     """Fetches and caches all Nightscout data used by sensors."""
 
     def __init__(self, hass: HomeAssistant, url: str, token: str) -> None:
+        """Initialise the coordinator with the Nightscout URL and API token."""
         self.url = url.rstrip("/")
         self.token = token
         super().__init__(
@@ -38,31 +45,33 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
         )
 
     # ------------------------------------------------------------------
-    # Internal helpers
+    # Private helpers
     # ------------------------------------------------------------------
 
     def _build_url(self, path: str, params: dict) -> str:
-        """Build a URL with bracket-notation query params left unencoded.
+        """Build a URL preserving bracket notation in query parameter keys.
 
-        aiohttp's params= argument percent-encodes '[' and ']' into %5B/%5D,
-        which Nightscout's MongoDB-style API does not recognise. We therefore
-        build the query string manually, only encoding param *values*.
+        aiohttp's ``params=`` argument percent-encodes ``[`` and ``]`` into
+        ``%5B`` / ``%5D``, which Nightscout's MongoDB-style query API does not
+        recognise. We therefore build the query string manually, encoding only
+        the *values* while leaving the *keys* untouched.
         """
-        parts = []
+        parts: list[str] = []
         if self.token:
             parts.append(f"token={quote(self.token, safe='')}")
         for key, value in params.items():
-            # Keys are trusted bracket-notation strings — leave them as-is.
-            # Values are encoded to handle spaces, special characters, etc.
-            parts.append(f"{key}={quote(str(value), safe=':')}")
-        query_string = "&".join(parts)
-        full_url = f"{self.url}{path}?{query_string}"
-        safe_url = full_url.replace(self.token, "***") if self.token else full_url
-        _LOGGER.debug("Nightscout request URL: %s", safe_url)
+            parts.append(f"{key}={quote(str(value), safe='-.:T')}")
+        full_url = f"{self.url}{path}?{'&'.join(parts)}"
+        _LOGGER.debug(
+            "Nightscout request: %s",
+            full_url.replace(self.token, "***") if self.token else full_url,
+        )
         return full_url
 
-    async def _fetch_json(self, session: aiohttp.ClientSession, path: str, params: dict) -> list | dict:
-        """GET a Nightscout API endpoint and return parsed JSON."""
+    async def _fetch_json(
+        self, session: aiohttp.ClientSession, path: str, params: dict
+    ) -> list | dict:
+        """GET a Nightscout API endpoint and return the parsed JSON body."""
         url = self._build_url(path, params)
         async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
@@ -70,12 +79,12 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
                     f"Nightscout returned HTTP {resp.status} for {path}"
                 )
             data = await resp.json()
-            _LOGGER.debug("Nightscout [%s] → %s", path, data)
+            _LOGGER.debug("Nightscout response for %s: %s", path, data)
             return data
 
     @staticmethod
     def _hours_since(timestamp_str: str | None) -> float | None:
-        """Return hours elapsed since an ISO-8601 timestamp string."""
+        """Return decimal hours elapsed since an ISO-8601 timestamp string."""
         if not timestamp_str:
             return None
         try:
@@ -83,28 +92,27 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
             delta = datetime.now(timezone.utc) - dt
             return round(delta.total_seconds() / 3600, 1)
         except (ValueError, TypeError):
-            _LOGGER.warning("Could not parse timestamp: %s", timestamp_str)
+            _LOGGER.warning("Could not parse Nightscout timestamp: %s", timestamp_str)
             return None
 
     @staticmethod
     def _lookback_date_str(days: int) -> str:
-        """Return an ISO-8601 date string for the given number of days ago (UTC)."""
+        """Return an ISO-8601 UTC date string for ``days`` ago."""
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         return cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
     # ------------------------------------------------------------------
-    # Main update method — called by HA on the update interval
+    # Main update — called by HA on the configured interval
     # ------------------------------------------------------------------
 
     async def _async_update_data(self) -> dict:
-        """Fetch latest data from Nightscout and return a unified dict."""
+        """Fetch the latest data from Nightscout and return a unified dict."""
         async with aiohttp.ClientSession() as session:
-            # Fetch device status (pump battery, reservoir)
             devicestatus = await self._fetch_json(
                 session, API_DEVICESTATUS, {"count": 1}
             )
 
-            # Fetch last cannula change (CAGE) — typically replaced every 1–4 days
+            # Cannula age — infusion sets are typically replaced every 1–4 days
             cage_results = await self._fetch_json(
                 session,
                 API_TREATMENTS,
@@ -115,7 +123,7 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
                 },
             )
 
-            # Fetch last sensor start (SAGE) — Dexcom sensor lasts up to 15 days
+            # Sensor age — Dexcom sensors last up to 15 days
             sage_results = await self._fetch_json(
                 session,
                 API_TREATMENTS,
@@ -126,43 +134,38 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
                 },
             )
 
-        # --- Parse pump data ---
-        pump_battery = None
-        pump_reservoir = None
+        # --- Pump data (battery + reservoir) ---
+        pump_battery: float | None = None
+        pump_reservoir: float | None = None
         if devicestatus and isinstance(devicestatus, list):
-            status = devicestatus[0]
-            pump = status.get("pump", {})
+            pump = devicestatus[0].get("pump", {})
             battery = pump.get("battery", {})
             pump_battery = battery.get("percent") or battery.get("voltage")
             pump_reservoir = pump.get("reservoir")
 
-        # --- Parse CAGE ---
-        # cage_stale=True means no cannula change was found within the lookback
-        # window, which likely indicates missing data in Nightscout.
-        cage_hours = None
+        # --- Cannula age ---
+        # ``cage_stale`` is True when no record was found in the lookback window,
+        # indicating that the data is missing or overdue in Nightscout.
+        cage_hours: float | None = None
         cage_stale = True
         if cage_results and isinstance(cage_results, list):
-            last_cage = cage_results[0]
-            cage_hours = self._hours_since(
-                last_cage.get("created_at") or last_cage.get("timestamp")
-            )
+            ts = cage_results[0].get("created_at") or cage_results[0].get("timestamp")
+            cage_hours = self._hours_since(ts)
             cage_stale = cage_hours is None
 
-        # --- Parse SAGE ---
-        sage_hours = None
+        # --- Sensor age ---
+        sage_hours: float | None = None
         sage_stale = True
         if sage_results and isinstance(sage_results, list):
-            last_sage = sage_results[0]
-            sage_hours = self._hours_since(
-                last_sage.get("created_at") or last_sage.get("timestamp")
-            )
+            ts = sage_results[0].get("created_at") or sage_results[0].get("timestamp")
+            sage_hours = self._hours_since(ts)
             sage_stale = sage_hours is None
 
         return {
-            "pump_battery": pump_battery,
-            "pump_reservoir": pump_reservoir,
-            "cage": cage_hours,
-            "cage_stale": cage_stale,
-            "sage": sage_hours,
-            "sage_stale": sage_stale,
+            KEY_PUMP_BATTERY: pump_battery,
+            KEY_PUMP_RESERVOIR: pump_reservoir,
+            KEY_CAGE: cage_hours,
+            KEY_CAGE_STALE: cage_stale,
+            KEY_SAGE: sage_hours,
+            KEY_SAGE_STALE: sage_stale,
         }
