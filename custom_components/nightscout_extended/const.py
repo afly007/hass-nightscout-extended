@@ -9,12 +9,9 @@ DEFAULT_SCAN_INTERVAL = 300  # seconds (5 minutes)
 API_DEVICESTATUS = "/api/v1/devicestatus.json"
 API_TREATMENTS = "/api/v1/treatments.json"
 
-# Treatment event types.
-# TREATMENT_SAGE_CHANGE confirmed as "Site Change" for this setup.
-# TREATMENT_CAGE_CHANGE — update this once the correct eventType is confirmed
-# by inspecting /api/v1/treatments.json?count=30 for cannula/infusion set entries.
-TREATMENT_CAGE_CHANGE = "Cannula Change"   # ← UPDATE THIS if needed
-TREATMENT_SAGE_CHANGE = "Site Change"      # confirmed
+# Treatment event types — confirmed for this setup.
+TREATMENT_CAGE_CHANGE = "Site Change"    # infusion set / cannula change
+TREATMENT_SAGE_CHANGE = "Sensor Start"   # CGM sensor insertion
 
 # How far back to search for CAGE/SAGE treatments (days).
 # Sensors older than this are considered missing/stale in Nightscout.
