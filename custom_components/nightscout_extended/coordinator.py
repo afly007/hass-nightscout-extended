@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import aiohttp
 
@@ -40,20 +41,36 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _auth_params(self) -> dict:
-        """Return query params for authentication."""
+    def _build_url(self, path: str, params: dict) -> str:
+        """Build a URL with bracket-notation query params left unencoded.
+
+        aiohttp's params= argument percent-encodes '[' and ']' into %5B/%5D,
+        which Nightscout's MongoDB-style API does not recognise. We therefore
+        build the query string manually, only encoding param *values*.
+        """
+        parts = []
         if self.token:
-            return {"token": self.token}
-        return {}
+            parts.append(f"token={quote(self.token, safe='')}")
+        for key, value in params.items():
+            # Keys are trusted bracket-notation strings — leave them as-is.
+            # Values are encoded to handle spaces, special characters, etc.
+            parts.append(f"{key}={quote(str(value), safe=':')}")
+        query_string = "&".join(parts)
+        full_url = f"{self.url}{path}?{query_string}"
+        _LOGGER.debug("Nightscout request: %s", full_url.replace(self.token, "***") if self.token else full_url)
+        return full_url
 
     async def _fetch_json(self, session: aiohttp.ClientSession, path: str, params: dict) -> list | dict:
         """GET a Nightscout API endpoint and return parsed JSON."""
-        params = {**self._auth_params(), **params}
-        url = f"{self.url}{path}"
-        async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
+        url = self._build_url(path, params)
+        async with session.get(url, timeout=aiohttp.ClientTimeout(total=15)) as resp:
             if resp.status != 200:
-                raise UpdateFailed(f"Nightscout returned HTTP {resp.status} for {path}")
-            return await resp.json()
+                raise UpdateFailed(
+                    f"Nightscout returned HTTP {resp.status} for {path}"
+                )
+            data = await resp.json()
+            _LOGGER.debug("Nightscout response for %s: %s", path, data)
+            return data
 
     @staticmethod
     def _hours_since(timestamp_str: str | None) -> float | None:
@@ -68,15 +85,15 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
             _LOGGER.warning("Could not parse timestamp: %s", timestamp_str)
             return None
 
-    # ------------------------------------------------------------------
-    # Main update method — called by HA on the update interval
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _lookback_date_str(days: int) -> str:
         """Return an ISO-8601 date string for the given number of days ago (UTC)."""
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         return cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+    # ------------------------------------------------------------------
+    # Main update method — called by HA on the update interval
+    # ------------------------------------------------------------------
 
     async def _async_update_data(self) -> dict:
         """Fetch latest data from Nightscout and return a unified dict."""
