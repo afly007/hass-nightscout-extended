@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Nightscout",
+        "description": "Enter your Nightscout URL and an API token. Generate a read-only token in Nightscout under Admin → Auth Tokens.",
+        "data": {
+          "url": "Nightscout URL",
+          "token": "API Token (optional if your site is open)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to Nightscout. Check the URL and try again.",
+      "invalid_token": "Authentication failed. Check your API token.",
+      "unknown": "An unexpected error occurred."
+    },
+    "abort": {
+      "already_configured": "This Nightscout instance is already configured."
+    }
+  }
+}
