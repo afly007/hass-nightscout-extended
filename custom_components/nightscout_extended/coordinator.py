@@ -57,7 +57,8 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
             parts.append(f"{key}={quote(str(value), safe=':')}")
         query_string = "&".join(parts)
         full_url = f"{self.url}{path}?{query_string}"
-        _LOGGER.debug("Nightscout request: %s", full_url.replace(self.token, "***") if self.token else full_url)
+        safe_url = full_url.replace(self.token, "***") if self.token else full_url
+        _LOGGER.warning("Nightscout request URL: %s", safe_url)
         return full_url
 
     async def _fetch_json(self, session: aiohttp.ClientSession, path: str, params: dict) -> list | dict:
@@ -69,7 +70,7 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
                     f"Nightscout returned HTTP {resp.status} for {path}"
                 )
             data = await resp.json()
-            _LOGGER.debug("Nightscout response for %s: %s", path, data)
+            _LOGGER.warning("Nightscout [%s] → %s", path, data)
             return data
 
     @staticmethod
