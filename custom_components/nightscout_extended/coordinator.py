@@ -12,9 +12,10 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     API_DEVICESTATUS,
     API_TREATMENTS,
-    CAGE_SAGE_LOOKBACK_DAYS,
+    CAGE_LOOKBACK_DAYS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    SAGE_LOOKBACK_DAYS,
     TREATMENT_CAGE_CHANGE,
     TREATMENT_SAGE_CHANGE,
 )
@@ -72,39 +73,37 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
     # ------------------------------------------------------------------
 
     @staticmethod
-    def _lookback_date_str() -> str:
-        """Return an ISO-8601 date string for CAGE_SAGE_LOOKBACK_DAYS ago (UTC)."""
-        cutoff = datetime.now(timezone.utc) - timedelta(days=CAGE_SAGE_LOOKBACK_DAYS)
+    def _lookback_date_str(days: int) -> str:
+        """Return an ISO-8601 date string for the given number of days ago (UTC)."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         return cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
     async def _async_update_data(self) -> dict:
         """Fetch latest data from Nightscout and return a unified dict."""
-        lookback = self._lookback_date_str()
-
         async with aiohttp.ClientSession() as session:
             # Fetch device status (pump battery, reservoir)
             devicestatus = await self._fetch_json(
                 session, API_DEVICESTATUS, {"count": 1}
             )
 
-            # Fetch last cannula change (CAGE) within the lookback window
+            # Fetch last cannula change (CAGE) — typically replaced every 1–4 days
             cage_results = await self._fetch_json(
                 session,
                 API_TREATMENTS,
                 {
                     "find[eventType]": TREATMENT_CAGE_CHANGE,
-                    "find[created_at][$gte]": lookback,
+                    "find[created_at][$gte]": self._lookback_date_str(CAGE_LOOKBACK_DAYS),
                     "count": 1,
                 },
             )
 
-            # Fetch last sensor change (SAGE) within the lookback window
+            # Fetch last sensor start (SAGE) — Dexcom sensor lasts up to 15 days
             sage_results = await self._fetch_json(
                 session,
                 API_TREATMENTS,
                 {
                     "find[eventType]": TREATMENT_SAGE_CHANGE,
-                    "find[created_at][$gte]": lookback,
+                    "find[created_at][$gte]": self._lookback_date_str(SAGE_LOOKBACK_DAYS),
                     "count": 1,
                 },
             )
