@@ -1,7 +1,5 @@
 {
   "name": "Nightscout Extended",
-  "description": "Extended Nightscout integration for Home Assistant — includes CAGE, SAGE, pump battery, and reservoir.",
-  "content_in_root": false,
   "render_readme": true,
   "homeassistant": "2023.1.0"
 }
