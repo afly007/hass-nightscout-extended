@@ -12,10 +12,11 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from .const import (
     API_DEVICESTATUS,
     API_TREATMENTS,
+    CAGE_SAGE_LOOKBACK_DAYS,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
-    TREATMENT_SENSOR_CHANGE,
-    TREATMENT_SITE_CHANGE,
+    TREATMENT_CAGE_CHANGE,
+    TREATMENT_SAGE_CHANGE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,26 +71,42 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
     # Main update method — called by HA on the update interval
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _lookback_date_str() -> str:
+        """Return an ISO-8601 date string for CAGE_SAGE_LOOKBACK_DAYS ago (UTC)."""
+        cutoff = datetime.now(timezone.utc) - timedelta(days=CAGE_SAGE_LOOKBACK_DAYS)
+        return cutoff.strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
     async def _async_update_data(self) -> dict:
         """Fetch latest data from Nightscout and return a unified dict."""
+        lookback = self._lookback_date_str()
+
         async with aiohttp.ClientSession() as session:
             # Fetch device status (pump battery, reservoir)
             devicestatus = await self._fetch_json(
                 session, API_DEVICESTATUS, {"count": 1}
             )
 
-            # Fetch last site change (CAGE)
-            site_changes = await self._fetch_json(
+            # Fetch last cannula change (CAGE) within the lookback window
+            cage_results = await self._fetch_json(
                 session,
                 API_TREATMENTS,
-                {"find[eventType]": TREATMENT_SITE_CHANGE, "count": 1},
+                {
+                    "find[eventType]": TREATMENT_CAGE_CHANGE,
+                    "find[created_at][$gte]": lookback,
+                    "count": 1,
+                },
             )
 
-            # Fetch last sensor change (SAGE)
-            sensor_changes = await self._fetch_json(
+            # Fetch last sensor change (SAGE) within the lookback window
+            sage_results = await self._fetch_json(
                 session,
                 API_TREATMENTS,
-                {"find[eventType]": TREATMENT_SENSOR_CHANGE, "count": 1},
+                {
+                    "find[eventType]": TREATMENT_SAGE_CHANGE,
+                    "find[created_at][$gte]": lookback,
+                    "count": 1,
+                },
             )
 
         # --- Parse pump data ---
@@ -103,24 +120,32 @@ class NightscoutExtendedCoordinator(DataUpdateCoordinator):
             pump_reservoir = pump.get("reservoir")
 
         # --- Parse CAGE ---
+        # cage_stale=True means no cannula change was found within the lookback
+        # window, which likely indicates missing data in Nightscout.
         cage_hours = None
-        if site_changes and isinstance(site_changes, list):
-            last_site = site_changes[0]
+        cage_stale = True
+        if cage_results and isinstance(cage_results, list):
+            last_cage = cage_results[0]
             cage_hours = self._hours_since(
-                last_site.get("created_at") or last_site.get("timestamp")
+                last_cage.get("created_at") or last_cage.get("timestamp")
             )
+            cage_stale = cage_hours is None
 
         # --- Parse SAGE ---
         sage_hours = None
-        if sensor_changes and isinstance(sensor_changes, list):
-            last_sensor = sensor_changes[0]
+        sage_stale = True
+        if sage_results and isinstance(sage_results, list):
+            last_sage = sage_results[0]
             sage_hours = self._hours_since(
-                last_sensor.get("created_at") or last_sensor.get("timestamp")
+                last_sage.get("created_at") or last_sage.get("timestamp")
             )
+            sage_stale = sage_hours is None
 
         return {
             "pump_battery": pump_battery,
             "pump_reservoir": pump_reservoir,
             "cage": cage_hours,
+            "cage_stale": cage_stale,
             "sage": sage_hours,
+            "sage_stale": sage_stale,
         }
